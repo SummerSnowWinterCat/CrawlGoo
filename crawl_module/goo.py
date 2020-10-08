@@ -12,7 +12,7 @@ from bs4 import BeautifulSoup as soup
 import crawl_module.user_agent_fake as user_fake
 import time
 import ssl
-import database_mysql.crawl_save as c_save
+import database_service.goo_init_database as g_i_d
 from tqdm import tqdm
 
 base_url = 'https://dictionary.goo.ne.jp'
@@ -37,11 +37,18 @@ def get_content_box_word(url):
     # create index dic
     dictionary_index = {}
     # get content_box_word
-    content_box_word = get_request(url).find_all('ol', class_='list-word cx')
+    # print(get_request(url))
+    content_box_word = get_request(url).find_all('div', class_='content-box-in col4')
     # into
     for cbw in content_box_word:
-        dictionary_index[cbw.li.text] = base_url + cbw.li.a.get('href')
-        # cbw.li.text, cbw.li.a.get('href')
+        for list_cx in cbw.find_all('ol', class_='list-word cx'):
+            for li in list_cx.find_all('li'):
+                if li.has_attr('class') is False:
+                    dictionary_index[li.text] = base_url + li.a.get('href')
+    # for cbw in content_box_word:
+    #     print(cbw)
+    #    dictionary_index[cbw.li.text] = base_url + cbw.li.a.get('href')
+    # cbw.li.text, cbw.li.a.get('href')
     # log here !
     return dictionary_index
 
@@ -87,28 +94,58 @@ def get_word(url):
 
 
 # GET IT
+def create_database(table_name):
+    if len(g_i_d.search_database_table(table_name)) == 0:
+        g_i_d.create_all_table()
+        return 0
+    else:
+        print('TABLES  ALL READY!')
+        return 0
+
+
+# insert into database
+def syllabary_download(syllabary_list):
+    for sl_k, sl_v in tqdm(syllabary_list.items()):
+        g_i_d.insert_syllabary_data(str(sl_k), str(sl_v))
+    print('syllabary save complete!')
+
+    return 0
+
+
 def crawl_start(url):
     '''
      crawl_start is to create database_mysql and crawl words
      shell two mode : create init or crawl only
     :return: 0
     '''
+    create_database('japanese_syllabary')
     # get request information
-    # {'あ': 'https://dictionary.goo.ne.jp/jn/index/%E3%81%82/'
-    index_list = get_content_box_word(url=url)
-    # init database_mysql
-    # print(index_list)
-    for t_name, p_url in index_list.items():
-        word_pages_list = get_word_pages(p_url)
-        for p in tqdm(range(0, len(word_pages_list) + 1)):
-            time.sleep(5)
-            word_list = get_word(word_pages_list[p])
-            for wd, wi, in word_list.items():
-                if c_save.save_word(t_name=t_name, word=wd, word_info=wi[0], word_url=wi[1], save_date='now'):
-                    continue
-                    time.sleep(5)
-                else:
-                    time.sleep(1)
-                    break
-
+    syllabary_list = get_content_box_word(url=url)
+    # input to database
+    syllabary_download(syllabary_list)
+    # get data from mysql
+    syllabary_data = g_i_d.search_japanese_syllabary_id_and_url()
+    # data reset
+    re_syllabary_data = []
+    for s_data in syllabary_data:
+        # get url from database
+        re_data = s_data['URL']
+        re_syllabary_data.append((s_data['ID'], re_data))
+        for r_s_d in re_syllabary_data:
+            r_s_d_id, r_s_d_url = r_s_d[0], r_s_d[1]
+            # get id and url
+            time.sleep(0.8)
+            word_pages_list = get_word_pages(url=r_s_d_url)
+            for w_p_l in tqdm(range(len(word_pages_list))):
+                url = word_pages_list[w_p_l]
+                time.sleep(3.5)
+                # get word sleep 3ms
+                words_list = get_word(url=url)
+                for word, info in words_list.items():
+                    word = word.strip()
+                    word_meaning = info[0].strip()
+                    word_url = info[1].strip()
+                    g_i_d.insert_word(word=word, word_url=word_url, word_meaning=word_meaning,
+                                      word_update_time=time.strftime(
+                                          "%Y-%m-%d %H:%M:%S", time.localtime()), syllabary_id=r_s_d_id)
     return 0
