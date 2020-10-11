@@ -8,76 +8,100 @@ import time
 import pymysql
 
 
-def create_all_table():
-    '''
-    this function is to create key table
-    -ID- -KEY-
-    -ID- -WORD- -WORD_INFO- -URL- -DATETIME- -KEY_ID-
-    -ID- -WORD_INFO- -DATETIME- -URL- -WORD-ID-
-    :return: result
-    '''
-    syllabary_sql = '''
-    CREATE TABLE IF NOT EXISTS japanese_syllabary(
-    ID INT PRIMARY KEY AUTO_INCREMENT,
-    SYLLABARY VARCHAR(25) NOT NULL,
-    URL VARCHAR(1000)
-    )CHARSET utf8;
-    '''
+# create main key table
+def create_syllabary_table(table_name):
+    _SYLLABARY_SQL = '''
+            CREATE TABLE IF NOT EXISTS {}(
+            ID INT PRIMARY KEY AUTO_INCREMENT,
+            SYLLABARY VARCHAR(25) NOT NULL,
+            URL VARCHAR(1000)
+            )CHARSET utf8mb4;
+            '''.format(table_name)
 
-    word_sql = '''
-        CREATE TABLE IF NOT EXISTS word_dictionary(
+    if len(search_database_table(table_name)) == 0:
+        if add_data(query=_SYLLABARY_SQL) != -1:
+            print('Create {} SUCCESS'.format(table_name))
+            return True
+        else:
+            print('Create {} Error'.format(table_name))
+            return False
+    else:
+
+        print('{} is STANDBY'.format(table_name))
+        return True
+
+
+# CREATE BASE WORD TABLE
+def create_word_table_and_extend(word_table_name, key_table, word_extend_name):
+    _WORD_SQL = '''
+      CREATE TABLE IF NOT EXISTS {}(
       ID INT PRIMARY KEY AUTO_INCREMENT,
       WORD VARCHAR(200) NOT NULL ,
+      WORD_TYPE VARCHAR(200),
       WORD_URL VARCHAR(1000) NOT NULL ,
       WORD_MEANING VARCHAR(2000),
       UPDATE_TIME DATETIME,
       SYLLABARY_ID INT NOT NULL ,
-      FOREIGN KEY (SYLLABARY_ID) references japanese_syllabary(ID))
+      FOREIGN KEY (SYLLABARY_ID) references {}(ID))
       CHARSET utf8mb4;
-    '''
+    '''.format(word_table_name, key_table)
 
-    word_extend_sql = '''
-    CREATE TABLE IF NOT EXISTS word_extend(
+    _WORD_EXTEND = '''
+    CREATE TABLE IF NOT EXISTS {}(
     ID INT PRIMARY KEY AUTO_INCREMENT,
     WORD_MEANING VARBINARY(7000),
     UPDATE_TIME DATETIME,
     WORD_ID INT,
-    FOREIGN KEY (WORD_ID) references word_dictionary(ID))
-    CHARSET utf8mb4;  
-    '''
-    try:
-        syllabary_result, word_result, word_extend_result = -1, -1, -1
-        syllabary_result = add_data(query=syllabary_sql)
-        if syllabary_result != -1:
-            word_result = add_data(query=word_sql)
-        if word_result != -1:
-            word_extend_result = add_data(query=word_extend_sql)
-        if word_extend_result != -1:
+    FOREIGN KEY (WORD_ID) references {}(ID))
+    CHARSET utf8mb4;
+    '''.format(word_extend_name, word_table_name)
+    if add_data(query=_WORD_SQL) != -1:
+        if add_data(query=_WORD_EXTEND) != -1:
             return True
         else:
+            print('Create {} ERROR!'.format(word_extend_name))
             return False
-    except Exception:
-        print('database init error')
+    else:
+        print('Create {} Table ERROR!'.format(word_table_name))
+        return False
 
 
-def insert_syllabary_data(syllabary_data, url):
+def create_word_index_dictionary(word_index_dictionary_name):
+    word_index_dictionary = '''
+           CREATE TABLE IF NOT EXISTS '{}'(
+         ID INT PRIMARY KEY AUTO_INCREMENT,
+         WORD VARCHAR(200) NOT NULL ,
+         WORD_TYPE VARCHAR(100),
+         WORD_URL VARCHAR(1000) NOT NULL ,
+         WORD_MEANING VARCHAR(2000),
+         UPDATE_TIME DATETIME,
+         SYLLABARY_ID INT NOT NULL ,
+         FOREIGN KEY (SYLLABARY_ID) references japanese_syllabary(ID))
+         CHARSET utf8mb4;
+       '''.format(word_index_dictionary_name)
+    result = add_data(word_index_dictionary)
+    if result != -1:
+        return True
+    else:
+        return False
+
+
+# main table insert
+def insert_main_table_data(syllabary_table_name, syllabary_data, url):
     if syllabary_data is not None:
         sql = '''
-            INSERT INTO japanese_syllabary(ID, SYLLABARY,URL) VALUES (null,'{}','{}');
-        '''.format(syllabary_data, url)
+            INSERT INTO {} (ID, SYLLABARY,URL) VALUES (null,'{}','{}');
+        '''.format(syllabary_table_name, syllabary_data, url)
         return add_data(query=sql)
     else:
         return False
 
 
-def insert_word(word, word_url, word_meaning, word_update_time, syllabary_id):
-    word, word_url, word_meaning = pymysql.escape_string(word), pymysql.escape_string(word_url), pymysql.escape_string(
-        word_meaning)
-
+def insert_word(table_name, word, word_url, word_type, word_meaning, word_update_time, syllabary_id):
     sql = '''
-    INSERT INTO word_dictionary(ID,WORD,WORD_URL,WORD_MEANING,UPDATE_TIME,SYLLABARY_ID)
-    VALUES (null,'{}','{}','{}','{}','{}');
-    '''.format(word, word_url, word_meaning, word_update_time, syllabary_id)
+    INSERT INTO {}(ID,WORD,WORD_TYPE,WORD_URL,WORD_MEANING,UPDATE_TIME,SYLLABARY_ID)
+    VALUES (null,'{}','{}','{}','{}','{}','{}');
+    '''.format(table_name, word, word_type, word_url, word_meaning, word_update_time, syllabary_id)
     return add_data(query=sql)
 
 
@@ -97,8 +121,31 @@ def search_database_table(table_name):
     return search_data(query=sql)
 
 
-def search_japanese_syllabary_id_and_url():
+def search_main_table_id_and_url(table_name):
     sql = '''
-       SELECT ID,URL  FROM japanese_syllabary;
-    '''
+       SELECT ID,URL FROM {};
+    '''.format(table_name)
     return search_data(query=sql)
+
+
+def search_main_table_url_by_id(table_name, id):
+    sql = '''
+    SELECT URL FROM {} WHERE ID= {};
+    '''.format(table_name, id)
+    return search_data(query=sql)
+
+
+def drop_schemas(schema_name):
+    sql = '''
+        DROP schema {};
+    '''.format(pymysql.escape_string(schema_name))
+    add_data(sql)
+    return True
+
+
+def create_schemas(schema_name):
+    sql = '''
+        CREATE SCHEMA {};
+    '''.format(pymysql.escape_string(schema_name))
+    add_data(sql)
+    return True
