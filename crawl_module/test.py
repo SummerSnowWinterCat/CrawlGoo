@@ -4,4 +4,4 @@ import pymysql
 from tqdm import tqdm
 
 if __name__ == '__main__':
-    print(goo.download_limit('japanese_syllabary'))
+    print(goo.get_word_pages('https://dictionary.goo.ne.jp/jn/index/%E3%82%92/'))

@@ -58,12 +58,17 @@ def get_word_pages(url):
         word_pages_url = []
         # response hold
         source = get_request(url)
-        # last num
-        last_num = int(source.find('li', class_='last-num').text)
-        # set word url
-        [word_pages_url.append(url + str(i)) for i in range(1, last_num + 1)]
-        # log here !
-        return word_pages_url
+
+        if source.find('li', class_='last-num') is None:
+            word_pages_url.append(url)
+            return word_pages_url
+        else:
+            # last num
+            last_num = int(source.find('li', class_='last-num').text)
+            # set word url
+            [word_pages_url.append(url + str(i)) for i in range(1, last_num + 1)]
+            # log here !
+            return word_pages_url
     except Exception:
         print('pages module is error!')
         print('URL {}'.format(url))
