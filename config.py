@@ -5,11 +5,11 @@
 # @Email:summersnowwintercat@gmail.com
 
 # DB_CREATOR = 'pymysql'
-DB_HOST = '192.168.1.*'
+DB_HOST = '127.0.0.1'
 DB_POST = 3306
-DB_NAME = 'goo_schemas'
-DB_USER = 'None'
-DB_PASSWORD = 'None'
+DB_NAME = 'DICTIONARY'
+DB_USER = 'root'
+DB_PASSWORD = '000000'
 
 # encode
 DB_CHARSET = 'utf8mb4'
